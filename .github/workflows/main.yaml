@@ -54,6 +54,28 @@ jobs:
           date
           # Test basic OCI access
           oci os ns get
+      - name: Debug OCI Configuration
+        run: |
+         # 1. Verify credentials
+         echo "=== OCI Configuration ==="
+         cat ~/.oci/config
+         echo "=== Key File ==="
+         head -n 3 ~/.oci/oci_api_key.pem
+
+         # 2. Test bucket access with debug
+         echo "=== Testing Bucket Access ==="
+         oci os object put \
+         -ns ${{ env.OCI_NAMESPACE }} \
+         -bn ${{ env.OCI_BUCKET }} \
+         --file README.md \
+         --name "test_upload.txt" \
+         --debug
+
+         # 3. Verify bucket exists
+         echo "=== Verifying Bucket ==="
+         oci os bucket get \
+         -ns ${{ env.OCI_NAMESPACE }} \
+         -bn ${{ env.OCI_BUCKET }}
 
       - name: Upload files (fixed multipart logic)
         run: |
