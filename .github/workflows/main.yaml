@@ -31,75 +31,34 @@ jobs:
 
       - name: Configure OCI Credentials
         run: |
-         mkdir -p ~/.oci
-         cat > ~/.oci/config <<EOF
-         [DEFAULT]
-         user=${{ secrets.OCI_USER_OCID }}
-         fingerprint=${{ secrets.OCI_FINGERPRINT }}
-         tenancy=${{ secrets.OCI_TENANCY_OCID }}
-         region=${{ env.OCI_REGION }}
-         key_file=~/.oci/oci_api_key.pem
-         pass_phrase=${{ secrets.OCI_KEY_PASSPHRASE }}  # 🔑 Required for encrypted keys
-         EOF
+          mkdir -p ~/.oci
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ env.OCI_REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          pass_phrase=${{ secrets.OCI_KEY_PASSPHRASE }}  # 🔑 Required for encrypted keys
+          EOF
 
-            # Write the key EXACTLY as stored in GitHub Secrets (including headers)
-              cat > ~/.oci/oci_api_key.pem <<EOF
-               ${{ secrets.OCI_PRIVATE_KEY }}
-               EOF
+          # Write the key EXACTLY as stored in GitHub Secrets (including headers)
+          cat > ~/.oci/oci_api_key.pem <<EOF
+          ${{ secrets.OCI_PRIVATE_KEY }}
+          EOF
 
-            # Set strict permissions
-              chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
+          # Set strict permissions
+          chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
 
-           # Debug: Verify key format
-             echo "=== Key File (First 3 Lines) ==="
-             head -n 3 ~/.oci/oci_api_key.pem
-          # Verify configuration
-            echo "=== OCI Config ==="
-            cat ~/.oci/config
-            echo "=== Key File Head ==="
-            head -n 3 ~/.oci/oci_api_key.pem
-         steps:
       - name: Set UTF-8 locale
         run: |
-         export LANG=en_US.UTF-8
-         export LC_ALL=en_US.UTF-8
+          export LANG=en_US.UTF-8
+          export LC_ALL=en_US.UTF-8
+
       - name: Verify Authentication
         run: |
-          # Check clock sync
-          date
-          # Test basic OCI access
-          oci os ns get
-      - name: Debug OCI Configuration
-        run: |
-         # 1. Verify credentials
-         echo "=== OCI Configuration ==="
-         cat ~/.oci/config
-         echo "=== Key File ==="
-         head -n 3 ~/.oci/oci_api_key.pem
-      - name: Verify Key
-        run: |
-         oci os ns get --debug
-
-         # Check key type
-          openssl rsa -in ~/.oci/oci_api_key.pem -check 2>&1 | head -n 3
-    
-         # Test authentication
-           oci os ns get --debug
-
-         # 2. Test bucket access with debug
-           echo "=== Testing Bucket Access ==="
-           oci os object put \
-          -ns ${{ env.OCI_NAMESPACE }} \
-          -bn ${{ env.OCI_BUCKET }} \
-          --file README.md \
-          --name "test_upload.txt" \
-          --debug
-
-         # 3. Verify bucket exists
-         echo "=== Verifying Bucket ==="
-         oci os bucket get \
-         -ns ${{ env.OCI_NAMESPACE }} \
-         -bn ${{ env.OCI_BUCKET }}
+          date  # Check clock sync
+          oci os ns get  # Test OCI access
 
       - name: Upload files (fixed multipart logic)
         run: |
@@ -107,7 +66,7 @@ jobs:
             local file_path=$1
             local file_size=$(stat -c%s "$file_path")
             local object_name="${file_path#large-files/}"
-            
+
             echo "Uploading $file_path (Size: $file_size bytes) to $OCI_BUCKET"
 
             if [ "$file_size" -gt 52428800 ]; then  # 50MB threshold
