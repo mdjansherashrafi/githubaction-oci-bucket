@@ -42,6 +42,18 @@ jobs:
           EOF
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
+           # Verify configuration
+          echo "=== OCI Config ==="
+          cat ~/.oci/config
+          echo "=== Key File Head ==="
+          head -n 3 ~/.oci/oci_api_key.pem
+
+      - name: Verify Authentication
+        run: |
+          # Check clock sync
+          date
+          # Test basic OCI access
+          oci os ns get
 
       - name: Upload files (fixed multipart logic)
         run: |
