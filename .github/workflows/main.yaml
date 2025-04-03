@@ -40,14 +40,22 @@ jobs:
           region=${{ env.OCI_REGION }}
           key_file=~/.oci/oci_api_key.pem
           EOF
-          echo -e "-----BEGIN PRIVATE KEY-----\n${{ secrets.OCI_PRIVATE_KEY }}
-          \n-----END PRIVATE KEY-----\nOCI_API_KEY" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-           # Verify configuration
-          echo "=== OCI Config ==="
-          cat ~/.oci/config
-          echo "=== Key File Head ==="
-          head -n 3 ~/.oci/oci_api_key.pem
+          # Properly format the private key with headers and newlines
+            echo "-----BEGIN PRIVATE KEY-----" > ~/.oci/oci_api_key.pem
+            echo "${{ secrets.OCI_PRIVATE_KEY }}" | fold -w 64 >> ~/.oci/oci_api_key.pem
+            echo "-----END PRIVATE KEY-----" >> ~/.oci/oci_api_key.pem
+            echo "OCI_API_KEY" >> ~/.oci/oci_api_key.pem
+    
+            chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
+    
+          # Verify key format
+            echo "=== Key File Contents ==="
+            cat ~/.oci/oci_api_key.pem
+          # Verify configuration
+            echo "=== OCI Config ==="
+            cat ~/.oci/config
+            echo "=== Key File Head ==="
+            head -n 3 ~/.oci/oci_api_key.pem
 
       - name: Verify Authentication
         run: |
@@ -62,15 +70,22 @@ jobs:
          cat ~/.oci/config
          echo "=== Key File ==="
          head -n 3 ~/.oci/oci_api_key.pem
+      - name: Verify Key
+        run: |
+         # Check key type
+          openssl rsa -in ~/.oci/oci_api_key.pem -check 2>&1 | head -n 3
+    
+         # Test authentication
+           oci os ns get --debug
 
          # 2. Test bucket access with debug
-         echo "=== Testing Bucket Access ==="
-         oci os object put \
-         -ns ${{ env.OCI_NAMESPACE }} \
-         -bn ${{ env.OCI_BUCKET }} \
-         --file README.md \
-         --name "test_upload.txt" \
-         --debug
+           echo "=== Testing Bucket Access ==="
+           oci os object put \
+          -ns ${{ env.OCI_NAMESPACE }} \
+          -bn ${{ env.OCI_BUCKET }} \
+          --file README.md \
+          --name "test_upload.txt" \
+          --debug
 
          # 3. Verify bucket exists
          echo "=== Verifying Bucket ==="
