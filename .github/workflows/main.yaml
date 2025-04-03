@@ -18,15 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install OCI CLI
+      - name: Install Python and pip
         run: |
-         # Install without interactive prompts
-         export OCI_CLI_AUTO_INSTALL=YES  # Bypass interactive confirmation
-         curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
-         chmod +x install.sh
-         ./install.sh --accept-all-defaults --quiet
-         echo "$HOME/bin" >> $GITHUB_PATH
-         oci --version
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip
+
+      - name: Install OCI CLI via pip (recommended)
+        run: |
+          python3 -m pip install oci-cli --upgrade
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          oci --version
 
       - name: Configure OCI Credentials
         run: |
