@@ -1,0 +1,73 @@
+name: Upload Large Files to OCI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+env:
+  OCI_REGION: 'me-riyadh-1'  # Change to your OCI region
+  OCI_NAMESPACE: 'axjejvuhn1me'  # Your OCI namespace (required)
+  OCI_BUCKET: 'githubaction-demo-1'  # Your OCI bucket name
+  MULTIPART_THRESHOLD: '52428800'  # 50MB in bytes
+  MULTIPART_CHUNKSIZE: '26214400'  # 25MB in bytes
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OCI CLI
+        run: |
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+          oci --version
+
+      - name: Configure OCI Credentials
+        run: |
+          mkdir -p ~/.oci
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ env.OCI_REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Upload files
+        run: |
+          upload_file() {
+            local file_path=$1
+            local file_size=$(stat -c%s "$file_path")
+            local object_name="${file_path#large-files/}"
+            
+            echo "Uploading $file_path (Size: $file_size bytes) to $OCI_BUCKET"
+
+            if [ "$file_size" -gt ${{ env.MULTIPART_THRESHOLD }} ]; then
+              echo "Using multipart upload"
+              oci os object put \
+                -ns ${{ env.OCI_NAMESPACE }} \
+                -bn ${{ env.OCI_BUCKET }} \
+                --name "$object_name" \
+                --file "$file_path" \
+                --part-size ${{ env.MULTIPART_CHUNKSIZE }} \
+                --parallel-upload-count 10 \
+                --no-multipart
+            else
+              echo "Using standard upload"
+              oci os object put \
+                -ns ${{ env.OCI_NAMESPACE }} \
+                -bn ${{ env.OCI_BUCKET }} \
+                --name "$object_name" \
+                --file "$file_path"
+            fi
+          }
+
+          # Find and upload all files
+          find large-files/ -type f | while read -r file; do
+            upload_file "$file" || exit 1
+          done
