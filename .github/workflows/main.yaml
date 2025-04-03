@@ -18,12 +18,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Python and pip
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
-      
+
       - name: Install OCI CLI via pip (recommended)
         run: |
           python3 -m pip install oci-cli --upgrade
@@ -105,6 +105,9 @@ jobs:
                       "--content-type", "application/octet-stream"
                   ]
                   start_result = subprocess.run(cmd, capture_output=True, text=True)
+                  print("Multipart upload command output:")
+                  print(start_result.stdout)
+                  print(start_result.stderr)
                   if start_result.returncode != 0:
                       print(f"Error starting multipart upload: {start_result.stderr}")
                       return False
@@ -138,6 +141,10 @@ jobs:
                           part_result = subprocess.run(cmd, capture_output=True, text=True)
                           os.unlink(part_file)  # Clean up part file
                           
+                          print("Upload part command output:")
+                          print(part_result.stdout)
+                          print(part_result.stderr)
+                          
                           if part_result.returncode != 0:
                               print(f"Error uploading part {part_num}: {part_result.stderr}")
                               return False
@@ -161,6 +168,10 @@ jobs:
                   ]
                   commit_result = subprocess.run(cmd, capture_output=True, text=True)
                   os.unlink(parts_file)  # Clean up parts file
+                  
+                  print("Commit upload command output:")
+                  print(commit_result.stdout)
+                  print(commit_result.stderr)
                   
                   if commit_result.returncode != 0:
                       print(f"Error committing multipart upload: {commit_result.stderr}")
@@ -200,9 +211,9 @@ jobs:
                   print(f"Failed to upload {file_path}")
                   sys.exit(1)
           EOF
-          
+
           chmod +x upload_file.py
-          
+
           # Ensure the large-files directory exists, create test files if necessary
           if [ ! -d "large-files" ]; then
             mkdir -p large-files
@@ -210,12 +221,11 @@ jobs:
             dd if=/dev/urandom of=large-files/small-test.bin bs=1M count=10
             dd if=/dev/urandom of=large-files/large-test.bin bs=1M count=60
           fi
-          
+
           # Upload all files in the directory
           find large-files/ -type f | while read -r file; do
             echo "Processing $file..."
             ./upload_file.py "$file" || echo "Failed to upload $file"
-          done
 
       - name: Verify uploads
         env:
