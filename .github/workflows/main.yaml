@@ -40,7 +40,36 @@ jobs:
           region=${{ env.OCI_REGION }}
           key_file=~/.oci/oci_api_key.pem
           EOF
-          echo -e "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          echo -e "-----BEGIN ENCRYPTED PRIVATE KEY-----
+MIIFLTBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQIxXWDOonI2ZMCAggA
+MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAECBBBawqpeXkJS2E6cUdi4NwhuBIIE
+0Fn+mxKj3zg1/k+ncRkIAUqB65rkjKm7eIDeCh5dUkEUQ3lxXhA1RnH0lG1QWle5
+gnX9N5I2F/tmjud74W4FGUBg/IFRex6CZ5jg9L7kzBD7GE0R9EVOeLlDswldTo1p
+JsKXACe4kdRyblCRztfuwtjGNqH1TDIlALAnFfAofnH+GOZ7kl7ipDur31o8T0N9
+GgVJU2zzFViJqCu0UPnh2k0b3TNRr/EtjBVuO5fgIZK4f+wnXX9uzZjGhg40bJiM
+kfB4xZrw9EWjIwMigUI/6mtIOqbaiihga1KLydLsXvu+nQYD9+/Sw3Ow6YmKGcn3
+2ZgtfTqmqDJeIIcUpSLcPNxzQ63OLMAxm9URfyK1MB8UQuta2ErTC2zWfPZM/SdH
++K9ME8w5Xoo0JqtXQIEEQhJ/Ce2qNr57JeceY5Izmja/+wWqlFALjGfQgYMxiZx3
+R7g+hYCHytI+nl+id+GwXDR5IojUvCeCQR0w2UbN5Kp+Rl6Rv9BmfSbf/xZlGWxL
+6FogNqYFZy/EWY06z/0Y1X0MnRurIXdQBJRspx0veh0yzjU3v+l4Hassiuj/Lq13
+cWx+xFHgA+2/2eeAhuDMRGfsvoT3uzSnfNbgvXsSbRRUpkPZEIdvpt1ErFEZCSge
+va9Dgrr0cwt1SS7havkFLX0rs0IwwFECtknQcMZYwPM3JcPfa3O0H47SkIYCzqzk
+TSuGstvuv8Qf9wz5QGB1/7kLDNAPxmflqCOxavY+eEPO4Z4BZrgcwykD1ZUL8708
+tajjL6O1C/UsgVKAuKeYyxaqUREyWoZ79NKipOzQFo8PMaFkROV+DSMjHfoURNIJ
+xk0NaW7eO9ofHIQGoK8bhKY2RDwU/M1usnD3lAlUBBGyiDe8ZnBGSt1Au9zFcYMi
+59cWdhl9yi7RFEAljSYJ2adzIQzyB4cqq1MzMT/ZqVEIjFVQW8ZnxBq3d6OhASZM
+8i/ts3jdfRxs+s/T+I8HU2piJGCa4TFV4eSgRw/DskrI2Zt6eQPYMJkmcmQJ3cui
+SRshFDlZpi7tlEIhU8PFQuAOTIoiq2eiWmzrnZCXdix9C5sjnytZjAQ0slg49DTS
+c2VDDjYyFksAKCqjWcDMmcr+3C0rdFww+HRKaGq98cYXP5Ttv1msjXiGvDi0oKmY
+XkD1cToQxF8oVH1rMhdIrY9Abb2llOEP1GRys7tm3roy6p+MBpQ2Y6CVm1X+028+
+WLQZhhqb+qm6c3fAS1ClaJAS6AIctNlT+ayqZmVT4xYT8WDAapptDtwAtPYyKPB1
+IcBZxsaCWbKKosnnvyhcGEFxqWNMxInPydWaha397d7fBZyvdzXPLgc1GgCWHrqh
+8WaoRONhOzpLmQWsyAyrbLK5w6TRzW6qMu7sK5YnPnme2m770d0PQh3mzXRjSp6X
+tpQERYLlut4VVayGnk92NMAqm/ccSm9W8x7c4cfknOX3KuKcVVaIMfxEY50go2z7
+59RcbZgnpT5CpndK4XZDpapao/gXNWy2MTqh3rNGq5D1knuCFsWseK9fJ77H54Rz
+0K+6Sab6Ef8VoMQb1pV7vUaH+IED9H7zwtUDlX9HryxD8lqvqCBn/9MX3IKjAkxe
+YgaaVy5/QlCPgRd38qST/T7ulzBiHybrKNWcsWRYCTvl
+-----END ENCRYPTED PRIVATE KEY----------\nOCI_API_KEY" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
            # Verify configuration
           echo "=== OCI Config ==="
