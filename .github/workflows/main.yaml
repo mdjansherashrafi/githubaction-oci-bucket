@@ -20,9 +20,13 @@ jobs:
 
       - name: Install OCI CLI
         run: |
-          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" --accept-all-defaults
-          echo "$HOME/bin" >> $GITHUB_PATH
-          oci --version
+         # Install without interactive prompts
+         export OCI_CLI_AUTO_INSTALL=YES  # Bypass interactive confirmation
+         curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
+         chmod +x install.sh
+         ./install.sh --accept-all-defaults --quiet
+         echo "$HOME/bin" >> $GITHUB_PATH
+         oci --version
 
       - name: Configure OCI Credentials
         run: |
