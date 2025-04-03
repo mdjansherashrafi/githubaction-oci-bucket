@@ -1,17 +1,21 @@
 name: Upload Large Files to OCI
+
 on:
   workflow_dispatch:
   push:
     branches: [master]
+
 env:
   OCI_REGION: 'me-riyadh-1'  # Change to your OCI region
   OCI_NAMESPACE: 'axjejvuhn1me'  # Your OCI namespace (required)
   OCI_BUCKET: 'githubaction-demo-1'  # Your OCI bucket name
   MULTIPART_THRESHOLD: '52428800'  # 50MB
   OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: 'True'  # Suppress permissions warning
+
 jobs:
   upload:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
       
@@ -25,7 +29,7 @@ jobs:
           python3 -m pip install oci-cli --upgrade
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           oci --version
-      
+
       - name: Configure OCI Credentials
         env:
           PYTHONIOENCODING: "utf-8"
@@ -52,7 +56,7 @@ jobs:
           
           # Set strict permissions
           chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
-      
+
       - name: Verify Authentication
         env:
           PYTHONIOENCODING: "utf-8"
@@ -62,60 +66,36 @@ jobs:
         run: |
           date  # Check clock sync
           oci os ns get  # Test OCI access
-          
+
       - name: Debug OCI Configuration
         run: |
           echo "=== OCI Configuration ==="
           cat ~/.oci/config
           echo "=== Key File ==="
           head -n 3 ~/.oci/oci_api_key.pem
-          
-      - name: Configure AWS CLI for S3 Compatible Upload
-        run: |
-          # Check AWS CLI version
-          aws --version
-          
-          # Configure S3 compatible endpoint configuration
-          mkdir -p ~/.aws
-          cat > ~/.aws/credentials <<EOF
-          [default]
-          aws_access_key_id=${{ secrets.OCI_ACCESS_KEY_ID }}
-          aws_secret_access_key=${{ secrets.OCI_SECRET_ACCESS_KEY }}
-          EOF
-          
-          cat > ~/.aws/config <<EOF
-          [default]
-          region=${{ env.OCI_REGION }}
-          output=json
-          s3 =
-              addressing_style = path
-          EOF
-          
-          chmod 600 ~/.aws/credentials ~/.aws/config
-      
-      - name: Upload files with fixed multipart handling
+
+      - name: Upload files with multipart handling
         env:
           PYTHONIOENCODING: "utf-8"
           LC_ALL: "en_US.UTF-8"
           LANG: "en_US.UTF-8"
           SUPPRESS_LABEL_WARNING: "True"
         run: |
-          # Create multipart upload helper script
+          # Create the Python multipart upload script
           cat > upload_file.py <<EOF
           #!/usr/bin/env python3
           import os
           import sys
           import subprocess
           import json
-          from pathlib import Path
           
-          def upload_file(file_path, bucket, namespace, region):
+          def upload_file(file_path, bucket, namespace):
               file_size = os.path.getsize(file_path)
               object_name = os.path.basename(file_path)
               print(f"Uploading {file_path} (Size: {file_size} bytes) to {bucket}")
-              
+
               if file_size > 52428800:  # 50MB threshold
-                  print("Using multipart upload via Python wrapper")
+                  print("Using multipart upload")
                   # Start multipart upload
                   cmd = [
                       "oci", "os", "object-storage", "multipart-upload", "create",
@@ -128,31 +108,23 @@ jobs:
                   if start_result.returncode != 0:
                       print(f"Error starting multipart upload: {start_result.stderr}")
                       return False
-                      
-                  try:
-                      upload_id = json.loads(start_result.stdout)['data']['upload-id']
-                  except Exception as e:
-                      print(f"Error parsing upload ID: {e}")
-                      print(f"Output: {start_result.stdout}")
-                      return False
                   
+                  upload_id = json.loads(start_result.stdout)['data']['upload-id']
                   print(f"Upload ID: {upload_id}")
-                  
-                  # Split file into parts - using 25MB chunks
-                  chunk_size = 25 * 1024 * 1024  # 25MB in bytes
+
+                  # Split file into parts (e.g., 25MB chunks)
+                  chunk_size = 25 * 1024 * 1024
                   total_parts = (file_size + chunk_size - 1) // chunk_size
                   parts = []
                   
                   with open(file_path, 'rb') as f:
                       for part_num in range(1, total_parts + 1):
-                          print(f"Uploading part {part_num}/{total_parts}")
                           part_data = f.read(chunk_size)
                           part_file = f"{file_path}.part{part_num}"
-                          
                           with open(part_file, 'wb') as part_f:
                               part_f.write(part_data)
                           
-                          # Upload part with explicit content length
+                          # Upload part
                           part_size = os.path.getsize(part_file)
                           cmd = [
                               "oci", "os", "object-storage", "multipart-upload", "upload-part",
@@ -163,28 +135,22 @@ jobs:
                               "--part-num", str(part_num),
                               "--file", part_file
                           ]
-                          
                           part_result = subprocess.run(cmd, capture_output=True, text=True)
                           os.unlink(part_file)  # Clean up part file
                           
                           if part_result.returncode != 0:
                               print(f"Error uploading part {part_num}: {part_result.stderr}")
                               return False
-                              
-                          try:
-                              etag = json.loads(part_result.stdout)['data']['etag']
-                              parts.append({"partNum": part_num, "etag": etag})
-                          except Exception as e:
-                              print(f"Error parsing part {part_num} response: {e}")
-                              print(f"Output: {part_result.stdout}")
-                              return False
+                          
+                          etag = json.loads(part_result.stdout)['data']['etag']
+                          parts.append({"partNum": part_num, "etag": etag})
                   
-                  # Create parts JSON file
+                  # Create the parts file
                   parts_file = f"{file_path}.parts.json"
                   with open(parts_file, 'w') as f:
                       json.dump({"partsToCommit": parts}, f)
                   
-                  # Complete multipart upload
+                  # Commit the multipart upload
                   cmd = [
                       "oci", "os", "object-storage", "multipart-upload", "commit",
                       "--namespace", namespace,
@@ -199,16 +165,16 @@ jobs:
                   if commit_result.returncode != 0:
                       print(f"Error committing multipart upload: {commit_result.stderr}")
                       return False
-                      
+                  
                   print("Multipart upload completed successfully")
                   return True
               else:
-                  print("Using standard OCI CLI upload")
-                  # Use direct non-multipart upload via OCI CLI for smaller files
+                  print("Using standard upload for small file")
+                  # Direct upload for smaller files
                   cmd = [
                       "oci", "os", "object", "put",
-                      "-ns", namespace,
-                      "-bn", bucket,
+                      "--namespace", namespace,
+                      "--bucket-name", bucket,
                       "--file", file_path,
                       "--name", object_name,
                       "--force"
@@ -220,17 +186,15 @@ jobs:
               if len(sys.argv) < 2:
                   print("Usage: upload_file.py <file_path>")
                   sys.exit(1)
-                  
               file_path = sys.argv[1]
               bucket = os.environ.get("OCI_BUCKET")
               namespace = os.environ.get("OCI_NAMESPACE")
-              region = os.environ.get("OCI_REGION")
               
               if not os.path.exists(file_path):
                   print(f"File not found: {file_path}")
                   sys.exit(1)
-                  
-              if upload_file(file_path, bucket, namespace, region):
+              
+              if upload_file(file_path, bucket, namespace):
                   print(f"Successfully uploaded {file_path}")
               else:
                   print(f"Failed to upload {file_path}")
@@ -239,7 +203,7 @@ jobs:
           
           chmod +x upload_file.py
           
-          # Create test files if directory doesn't exist
+          # Ensure the large-files directory exists, create test files if necessary
           if [ ! -d "large-files" ]; then
             mkdir -p large-files
             echo "Creating test files..."
@@ -247,12 +211,12 @@ jobs:
             dd if=/dev/urandom of=large-files/large-test.bin bs=1M count=60
           fi
           
-          # Find and upload all files
+          # Upload all files in the directory
           find large-files/ -type f | while read -r file; do
             echo "Processing $file..."
             ./upload_file.py "$file" || echo "Failed to upload $file"
           done
-          
+
       - name: Verify uploads
         env:
           PYTHONIOENCODING: "utf-8"
@@ -262,6 +226,6 @@ jobs:
         run: |
           echo "Listing objects in bucket to verify uploads:"
           oci os object list \
-            -ns ${{ env.OCI_NAMESPACE }} \
-            -bn ${{ env.OCI_BUCKET }} \
+            --namespace ${{ env.OCI_NAMESPACE }} \
+            --bucket-name ${{ env.OCI_BUCKET }} \
             --output table
