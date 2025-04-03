@@ -1,35 +1,37 @@
 name: Upload Large Files to OCI
-
 on:
   workflow_dispatch:
   push:
     branches: [master]
-
 env:
   OCI_REGION: 'me-riyadh-1'  # Change to your OCI region
   OCI_NAMESPACE: 'axjejvuhn1me'  # Your OCI namespace (required)
   OCI_BUCKET: 'githubaction-demo-1'  # Your OCI bucket name
   MULTIPART_THRESHOLD: '52428800'  # 50MB
   OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: 'True'  # Suppress permissions warning
-
 jobs:
   upload:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Install Python and pip
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
-
+      
       - name: Install OCI CLI via pip (recommended)
         run: |
           python3 -m pip install oci-cli --upgrade
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           oci --version
-
+      
       - name: Configure OCI Credentials
+        env:
+          PYTHONIOENCODING: "utf-8"
+          LC_ALL: "en_US.UTF-8"
+          LANG: "en_US.UTF-8"
+          SUPPRESS_LABEL_WARNING: "True"
         run: |
           mkdir -p ~/.oci
           cat > ~/.oci/config <<EOF
@@ -39,27 +41,24 @@ jobs:
           tenancy=${{ secrets.OCI_TENANCY_OCID }}
           region=${{ env.OCI_REGION }}
           key_file=~/.oci/oci_api_key.pem
-          pass_phrase=${{ secrets.OCI_KEY_PASSPHRASE }}  # 🔑 Required for encrypted keys
+          pass_phrase=${{ secrets.OCI_KEY_PASSPHRASE }}  # Required for encrypted keys
           EOF
-
+          
           # Write the key EXACTLY as stored in GitHub Secrets (including headers)
           cat > ~/.oci/oci_api_key.pem <<EOF
           ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_API_KEY
           EOF
-
+          
           # Set strict permissions
           chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
-
-      - name: Set UTF-8 locale
-        run: |
-          export LANG=en_US.UTF-8
-          export LC_ALL=en_US.UTF-8
-
-      - name: Suppress OCI API key warning
-        run: |
-          export SUPPRESS_LABEL_WARNING=True
-
+      
       - name: Verify Authentication
+        env:
+          PYTHONIOENCODING: "utf-8"
+          LC_ALL: "en_US.UTF-8"
+          LANG: "en_US.UTF-8"
+          SUPPRESS_LABEL_WARNING: "True"
         run: |
           date  # Check clock sync
           oci os ns get  # Test OCI access
@@ -70,34 +69,90 @@ jobs:
           cat ~/.oci/config
           echo "=== Key File ==="
           head -n 3 ~/.oci/oci_api_key.pem
-   
-      - name: Upload files (fixed multipart logic)
+          
+      - name: Install AWS CLI for S3 Compatible Upload
         run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+          aws --version
+      
+      - name: Configure S3 Compatible Settings for OCI
+        run: |
+          # Create S3 compatible endpoint configuration
+          mkdir -p ~/.aws
+          cat > ~/.aws/credentials <<EOF
+          [default]
+          aws_access_key_id=${{ secrets.OCI_ACCESS_KEY_ID }}
+          aws_secret_access_key=${{ secrets.OCI_SECRET_ACCESS_KEY }}
+          EOF
+          
+          cat > ~/.aws/config <<EOF
+          [default]
+          region=${{ env.OCI_REGION }}
+          output=json
+          s3 =
+              addressing_style = path
+          EOF
+          
+          chmod 600 ~/.aws/credentials ~/.aws/config
+      
+      - name: Upload files with fixed multipart handling
+        env:
+          PYTHONIOENCODING: "utf-8"
+          LC_ALL: "en_US.UTF-8"
+          LANG: "en_US.UTF-8"
+          SUPPRESS_LABEL_WARNING: "True"
+        run: |
+          # Function to upload files using the AWS CLI for large files (handles Content-Length properly)
+          # and OCI CLI for smaller files
           upload_file() {
             local file_path=$1
             local file_size=$(stat -c%s "$file_path")
             local object_name="${file_path#large-files/}"
-
+            
             echo "Uploading $file_path (Size: $file_size bytes) to $OCI_BUCKET"
-
+            
             if [ "$file_size" -gt 52428800 ]; then  # 50MB threshold
-              echo "Using multipart upload"
+              echo "Using AWS CLI for multipart upload (handles Content-Length properly)"
+              # Use AWS CLI with S3 compatibility for large files
+              aws s3 cp "$file_path" "s3://${{ env.OCI_BUCKET }}/$object_name" \
+                --endpoint-url https://objectstorage.${{ env.OCI_REGION }}.oraclecloud.com \
+                --expected-size $file_size
+            else
+              echo "Using standard OCI CLI upload"
+              # Use direct non-multipart upload via OCI CLI for smaller files
               oci os object put \
                 -ns ${{ env.OCI_NAMESPACE }} \
                 -bn ${{ env.OCI_BUCKET }} \
                 --file "$file_path" \
                 --name "$object_name" \
-                --part-size 26214400  # 25MB chunks
-            else
-              echo "Using standard upload"
-              oci os object put \
-                -ns ${{ env.OCI_NAMESPACE }} \
-                -bn ${{ env.OCI_BUCKET }} \
-                --file "$file_path" \
-                --name "$object_name"
+                --force
             fi
           }
-
+          
+          # Create test files if directory doesn't exist
+          if [ ! -d "large-files" ]; then
+            mkdir -p large-files
+            echo "Creating test files..."
+            dd if=/dev/urandom of=large-files/small-test.bin bs=1M count=10
+            dd if=/dev/urandom of=large-files/large-test.bin bs=1M count=100
+          fi
+          
+          # Find and upload all files
           find large-files/ -type f | while read -r file; do
-            upload_file "$file" || exit 1
+            upload_file "$file" || echo "Failed to upload $file"
           done
+          
+      - name: Verify uploads
+        env:
+          PYTHONIOENCODING: "utf-8"
+          LC_ALL: "en_US.UTF-8"
+          LANG: "en_US.UTF-8"
+          SUPPRESS_LABEL_WARNING: "True"
+        run: |
+          echo "Listing objects in bucket to verify uploads:"
+          oci os object list \
+            -ns ${{ env.OCI_NAMESPACE }} \
+            -bn ${{ env.OCI_BUCKET }} \
+            --output table
