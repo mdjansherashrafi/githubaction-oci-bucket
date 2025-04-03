@@ -9,8 +9,8 @@ env:
   OCI_REGION: 'me-riyadh-1'  # Change to your OCI region
   OCI_NAMESPACE: 'axjejvuhn1me'  # Your OCI namespace (required)
   OCI_BUCKET: 'githubaction-demo-1'  # Your OCI bucket name
-  MULTIPART_THRESHOLD: '52428800'  # 50MB in bytes
-  MULTIPART_CHUNKSIZE: '26214400'  # 25MB in bytes
+  MULTIPART_THRESHOLD: '52428800'  # 50MB
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: 'True'  # Suppress permissions warning
 
 jobs:
   upload:
@@ -43,7 +43,7 @@ jobs:
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
 
-      - name: Upload files
+      - name: Upload files (fixed multipart logic)
         run: |
           upload_file() {
             local file_path=$1
@@ -52,27 +52,24 @@ jobs:
             
             echo "Uploading $file_path (Size: $file_size bytes) to $OCI_BUCKET"
 
-            if [ "$file_size" -gt ${{ env.MULTIPART_THRESHOLD }} ]; then
+            if [ "$file_size" -gt 52428800 ]; then  # 50MB threshold
               echo "Using multipart upload"
               oci os object put \
                 -ns ${{ env.OCI_NAMESPACE }} \
                 -bn ${{ env.OCI_BUCKET }} \
-                --name "$object_name" \
                 --file "$file_path" \
-                --part-size ${{ env.MULTIPART_CHUNKSIZE }} \
-                --parallel-upload-count 10 \
-                --no-multipart
+                --name "$object_name" \
+                --part-size 26214400  # 25MB chunks
             else
               echo "Using standard upload"
               oci os object put \
                 -ns ${{ env.OCI_NAMESPACE }} \
                 -bn ${{ env.OCI_BUCKET }} \
-                --name "$object_name" \
-                --file "$file_path"
+                --file "$file_path" \
+                --name "$object_name"
             fi
           }
 
-          # Find and upload all files
           find large-files/ -type f | while read -r file; do
             upload_file "$file" || exit 1
           done
