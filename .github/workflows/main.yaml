@@ -72,6 +72,8 @@ jobs:
          head -n 3 ~/.oci/oci_api_key.pem
       - name: Verify Key
         run: |
+         oci os ns get --debug
+
          # Check key type
           openssl rsa -in ~/.oci/oci_api_key.pem -check 2>&1 | head -n 3
     
