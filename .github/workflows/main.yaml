@@ -31,26 +31,28 @@ jobs:
 
       - name: Configure OCI Credentials
         run: |
-          mkdir -p ~/.oci
-          cat > ~/.oci/config <<EOF
-          [DEFAULT]
-          user=${{ secrets.OCI_USER_OCID }}
-          fingerprint=${{ secrets.OCI_FINGERPRINT }}
-          tenancy=${{ secrets.OCI_TENANCY_OCID }}
-          region=${{ env.OCI_REGION }}
-          key_file=~/.oci/oci_api_key.pem
-          EOF
-          # Properly format the private key with headers and newlines
-            echo "-----BEGIN PRIVATE KEY-----" > ~/.oci/oci_api_key.pem
-            echo "${{ secrets.OCI_PRIVATE_KEY }}" | fold -w 64 >> ~/.oci/oci_api_key.pem
-            echo "-----END PRIVATE KEY-----" >> ~/.oci/oci_api_key.pem
-            echo "OCI_API_KEY" >> ~/.oci/oci_api_key.pem
-    
-            chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
-    
-          # Verify key format
-            echo "=== Key File Contents ==="
-            cat ~/.oci/oci_api_key.pem
+         mkdir -p ~/.oci
+         cat > ~/.oci/config <<EOF
+         [DEFAULT]
+         user=${{ secrets.OCI_USER_OCID }}
+         fingerprint=${{ secrets.OCI_FINGERPRINT }}
+         tenancy=${{ secrets.OCI_TENANCY_OCID }}
+         region=${{ env.OCI_REGION }}
+         key_file=~/.oci/oci_api_key.pem
+         pass_phrase=${{ secrets.OCI_KEY_PASSPHRASE }}  # 🔑 Required for encrypted keys
+         EOF
+
+            # Write the key EXACTLY as stored in GitHub Secrets (including headers)
+              cat > ~/.oci/oci_api_key.pem <<EOF
+               ${{ secrets.OCI_PRIVATE_KEY }}
+               EOF
+
+            # Set strict permissions
+              chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
+
+           # Debug: Verify key format
+             echo "=== Key File (First 3 Lines) ==="
+             head -n 3 ~/.oci/oci_api_key.pem
           # Verify configuration
             echo "=== OCI Config ==="
             cat ~/.oci/config
