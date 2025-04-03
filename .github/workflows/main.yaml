@@ -55,11 +55,22 @@ jobs:
           export LANG=en_US.UTF-8
           export LC_ALL=en_US.UTF-8
 
+      - name: Suppress OCI API key warning
+        run: |
+          export SUPPRESS_LABEL_WARNING=True
+
       - name: Verify Authentication
         run: |
           date  # Check clock sync
           oci os ns get  # Test OCI access
-
+          
+      - name: Debug OCI Configuration
+        run: |
+          echo "=== OCI Configuration ==="
+          cat ~/.oci/config
+          echo "=== Key File ==="
+          head -n 3 ~/.oci/oci_api_key.pem
+   
       - name: Upload files (fixed multipart logic)
         run: |
           upload_file() {
