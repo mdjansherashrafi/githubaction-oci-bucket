@@ -58,7 +58,11 @@ jobs:
             cat ~/.oci/config
             echo "=== Key File Head ==="
             head -n 3 ~/.oci/oci_api_key.pem
-
+         steps:
+      - name: Set UTF-8 locale
+        run: |
+         export LANG=en_US.UTF-8
+         export LC_ALL=en_US.UTF-8
       - name: Verify Authentication
         run: |
           # Check clock sync
