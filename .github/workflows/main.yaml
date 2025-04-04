@@ -3,7 +3,7 @@ name: Upload File to OCI Bucket
 on:
   workflow_dispatch:  # Allows manual triggering
   push:
-    branches: [main]  # Change this to your preferred branch (e.g., 'main' or 'master')
+    branches: [master]  # Change this to your preferred branch (e.g., 'main' or 'master')
 
 env:
   OCI_REGION: 'me-riyadh-1'  # Change to your OCI region
