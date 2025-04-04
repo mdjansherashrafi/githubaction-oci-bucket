@@ -1,76 +1,73 @@
-name: Upload File to OCI Bucket
+name: Upload Large Files to OCI
 
 on:
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
   push:
-    branches: [master]  # Change this to your preferred branch (e.g., 'main' or 'master')
+    branches: [master]
 
 env:
-  OCI_REGION: 'me-riyadh-1'  # Change to your OCI region
-  OCI_NAMESPACE: 'axjejvuhn1me'  # Your OCI namespace
+  OCI_REGION: 'me-riyadh-1'  # Replace with your OCI region
+  OCI_NAMESPACE: 'axjejvuhn1me'  # Replace with your OCI namespace
   OCI_BUCKET: 'githubaction-demo-1'  # Your OCI bucket name
+  MULTIPART_THRESHOLD: '52428800'  # 50MB threshold
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: 'True'  # Suppress permissions warning
 
 jobs:
   upload:
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Checkout the repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Step 2: Install Python and pip
+      # Install Python and OCI CLI
       - name: Install Python and pip
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
-
-      # Step 3: Install OCI CLI
-      - name: Install OCI CLI
+          
+      - name: Install OCI CLI via pip (recommended)
         run: |
           python3 -m pip install oci-cli --upgrade
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           oci --version
 
-      # Step 4: Configure OCI CLI using credentials from GitHub secrets
-      - name: Configure OCI CLI
-        env:
-          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
-          OCI_KEY_PASSPHRASE: ${{ secrets.OCI_KEY_PASSPHRASE }}
+      # Configure OCI credentials (with secrets from GitHub)
+      - name: Configure OCI Credentials
         run: |
           mkdir -p ~/.oci
           cat > ~/.oci/config <<EOF
           [DEFAULT]
-          user=${OCI_USER_OCID}
-          fingerprint=${OCI_FINGERPRINT}
-          tenancy=${OCI_TENANCY_OCID}
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
           region=${{ env.OCI_REGION }}
           key_file=~/.oci/oci_api_key.pem
-          pass_phrase=${OCI_KEY_PASSPHRASE}
+          pass_phrase=${{ secrets.OCI_KEY_PASSPHRASE }}
           EOF
           
           cat > ~/.oci/oci_api_key.pem <<EOF
-          $OCI_PRIVATE_KEY
+          ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_API_KEY
           EOF
           
           chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
 
-      # Step 5: Verify OCI Authentication
-      - name: Verify OCI Authentication
+      # Verify authentication by listing namespaces
+      - name: Verify Authentication
         run: |
-          oci os ns get
+          date  # Check clock sync
+          oci os ns get  # Test OCI access
 
-      # Step 6: Upload a specific file to OCI bucket
-      - name: Upload File to OCI Bucket
-        env:
-          OCI_BUCKET: ${{ env.OCI_BUCKET }}
-          OCI_NAMESPACE: ${{ env.OCI_NAMESPACE }}
+      # Upload the actual file to OCI bucket
+      - name: Upload Large File to OCI Bucket
         run: |
-          # Specify the file you want to upload here
-          FILE_PATH="path/to/your/file.txt"  # Replace with the path to the file you want to upload
+          # Path to the file you want to upload
+          FILE_PATH="large-files/13399562_3840_2160_30fps.mp4"  # Update with the correct file path
+          
+          # Ensure the file exists in the repository
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "File not found: $FILE_PATH"
+            exit 1
+          fi
           
           # Upload the file to the OCI bucket
           oci os object put \
@@ -79,5 +76,14 @@ jobs:
             --file $FILE_PATH \
             --name $(basename $FILE_PATH) \
             --force
-          
+
           echo "File uploaded successfully to OCI bucket"
+
+      # Verify the upload by listing the objects in the OCI bucket
+      - name: Verify Uploads
+        run: |
+          echo "Listing objects in OCI bucket to verify upload:"
+          oci os object list \
+            --namespace $OCI_NAMESPACE \
+            --bucket-name $OCI_BUCKET \
+            --output table
